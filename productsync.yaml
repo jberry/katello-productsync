@@ -1,0 +1,16 @@
+---
+:settings:
+    :user: myuser
+    :pass: mypass
+    :uri: https://localhost
+    :timeout: 300
+    :org: 1
+    :lockfile: /tmp/katello-productsync.lock
+    :email: root@localhost
+---
+:products:
+    - Red Hat Enterprise Linux Atomic Host
+    - Red Hat Enterprise Linux Server
+    - Red Hat Satellite
+    - Red Hat Satellite Capsule
+    - Red Hat Software Collections for RHEL Server
