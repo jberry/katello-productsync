@@ -242,7 +242,7 @@ def sync()
                 #Catch ALL exceptions, and log it against the sync task that was errored and add it to the email/output it
                 error_counter += 1
                 #It's possible it errored on the synctask object and id may be null.  Need to account for that
-                if synctask.isNil? or synctask['id'].isNil?
+                if synctask.nil? or synctask['id'].nil?
                     taskid = "'No ID Available'"
                 else
                     taskid = synctask['id']
