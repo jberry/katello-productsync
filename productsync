@@ -169,7 +169,7 @@ def sync()
             productdetails = apiconn.resource(:products).call(:show, {:organization_id => @options[:org], :full_results => true, :id => product['id']})
             #Check and make sure the product isn't already syncing, and is in a good stopped state
             unless productdetails['sync_status']['raw_state'] == 'stopped'
-                email_body= "#{email_body}Product #{product['name']} is not in a stopped state. Current state: #{productdetails['sync_status']['raw_state']}</br></br>"
+                email_body= "#{email_body}<font color='red'>Product #{product['name']} is not in a stopped state. Current state: #{productdetails['sync_status']['raw_state']}</font></br></br>"
                 puts "Product #{product['name']} is not in a stopped state. Current state: #{productdetails['sync_status']['raw_state']}"
                 error_counter += 1
                 next
@@ -224,8 +224,14 @@ def sync()
             rescue Exception => e
                 #Catch ALL exceptions, and log it against the sync task that was errored and add it to the email/output it
                 error_counter += 1
-                puts "   Sync task #{synctask['id']} threw an exception: #{e.message}\n#{e.backtrace.inspect}"
-                email_body ="#{email_body}Sync task #{synctask['id']} threw an exception: #{e.message}</br>#{e.backtrace.inspect}</br></br>"
+                #It's possible it errored on the synctask object and id may be null.  Need to account for that
+                if synctask.isNil? or synctask['id'].isNil?
+                    taskid = "'No ID Available'"
+                else
+                    taskid = synctask['id']
+                end
+                puts "   Sync task #{taskid} threw an exception: #{e.message}\n#{e.backtrace.inspect}"
+                email_body ="#{email_body}<font color='red'>Sync task #{taskid} threw an exception: #{e.message}</br>#{e.backtrace.inspect}</font></br></br>"
             end
         end
     end
