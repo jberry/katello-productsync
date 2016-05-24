@@ -218,7 +218,9 @@ def sync()
                     error_counter += 1
                 end
                 puts "   Syncing of #{product['name']} completed. Result was #{status}"
-                email_body = "#{email_body}Syncing of #{product['name']} completed. Result was <a href=\"#{options[:uri]}/foreman_tasks/tasks/#{synctask['id']}\">#{status}</a></br></br>"
+                #Working on adding url links, but its broken when you use localhost as your URI...
+#                email_body = "#{email_body}Syncing of #{product['name']} completed. Result was <a href=\"#{@options[:uri]}/foreman_tasks/tasks/#{synctask['id']}\">#{status}</a></br></br>"
+                email_body = "#{email_body}Syncing of #{product['name']} completed. Result was #{status}</br></br>"
             rescue Exception => e
                 #Catch ALL exceptions, and log it against the sync task that was errored and add it to the email/output it
                 error_counter += 1
