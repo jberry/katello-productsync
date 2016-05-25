@@ -25,6 +25,7 @@ To get going, we do the following:
 * `sync`: This will sync any products listed in your config yaml file
 * `list`: This will list out all known products to your Katello instance in standard text format
 * `listasyaml`: Does the same as list,except outputs in YAML format for `>>` appending to your config file, for easy setup
+* `health`: Pretty much the same thing as `hammer product list`, however it tells you if the product was found in your YAML or not. Nice for comparison of products vs. what you're syncing via your YAML
 
 ##Example configuration file and run output:
 ```
