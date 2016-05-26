@@ -38,6 +38,7 @@ To get going, we do the following:
     :org: 1
     :lockfile: /tmp/katello-productsync.lock
     :email: root@localhost
+    :noop: false
 ---
 :products:
     - Red Hat CloudForms
@@ -51,6 +52,7 @@ To get going, we do the following:
 * `org`: Organization ID (not name) for managing content in
 * `lockfile`: The lockfile to use when running a sync, to ensure multiple arn't running at once
 * `email`: Who to email results, or long-running warnings to
+* `noop`: Disables actually doing anything in the sync action, but shows what it would have done
 
 ##Example run output:
 

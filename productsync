@@ -33,6 +33,7 @@ require 'terminal-table'
     :org            => 1,
     :email          => 'root@localhost',
     :lockfile       => '/tmp/katello-productsync.lock',
+    :noop           => 'false'
 }
 
 @options = {
@@ -72,6 +73,9 @@ optparse = OptionParser.new do |opts|
     opts.on("-e", "--email=emailaddress", "send email to this address on failures") do |e|
         @options[:email] = e
     end
+    opts.on("-n", "--noop", "does not execute any syncs, however tells you it would have") do |n|
+        @options[:noop] = n
+    end
 end
 optparse.parse!
 
@@ -107,7 +111,7 @@ def check_lock()
     lockfile = @options[:lockfile]
     unless File.exists?(lockfile)
         File.write(lockfile,"")
-#        `touch #{lockfile}`
+        #        `touch #{lockfile}`
     end
 
     unless File.new(lockfile).flock( File::LOCK_NB | File::LOCK_EX )
@@ -168,8 +172,8 @@ def list_as_yaml()
     end
     puts YAML.load("
         :products:
-            #{products_array}
-    ").to_yaml(line_width: -1)
+                   #{products_array}
+                   ").to_yaml(line_width: -1)
 end
 
 #Run through your Products, and spit out health information about them, and if they are in your mentioned YAML config or not
@@ -213,61 +217,66 @@ def sync()
             puts "Syncing #{product['name']}"
             email_body = "#{email_body}Syncing #{product['name']}</br>"
             #The sync process has the ability to error, so we're putting it inside a rescue block
-            begin
-                synctask = apiconn.resource(:products).call(:sync, {:organization_id => @options[:org], :id => product['id']})
-                running = true
-                pbar = ProgressBar.create(:format => "   %a < Task ID #{synctask['id']} >")
-                timercount = 0
-                #We've started the sync, now to let it do it's work while we wait...
-                #Yes, the below isn't perfectly accurate to the seconds. We sleep 30 seconds (accurate-ish), then do the API call which may take a few seconds.
-                #This leads to the timer count not being perfect. But for it's intended purpose, it's good enough
-                while running
-                    #Basically, sleep 30 seconds, as we only want to check status every 30 to prevent excessive API calls
-                    30.times {
-                        sleep 1
-                        pbar.refresh
-                        timercount += 1
-                    }
-                    #Get the current status of the sync task
-                    currentstatus = apiconn.resource(:foreman_tasks).call(:show, {:organization_id => @options[:org], :id => synctask['id']})
-                    #If the sync is finised, finish the timer and set running to false
-                    if currentstatus['state'] == 'stopped'
-                        running = false
-                        pbar.finish
-                    else
-                        #If the sync isn't finished, lets see how long it's been running. If it's divisible by 3600 seconds (an hour), send an email to inform the admin
-                        #There's nothing wrong with a long running sync, or sometimes there is. This is just a "watchdog" in a sense so the admin doesnt have to keep an eye on it
-                        #Ignore the hourly emails of a single sync taking a while if you know it should take a while
-                        #Otherwise, the email is an alert to see what's taking so long
-                        #Down the road, probably worth making the YAML take a time in seconds per product of a "standard" sync time, and then basing alerts off that
-                        if timercount % 3600 == 0
-                          send_email("ProductSync long running sync: #{product['name']}", "#{product['name']} has been syncing for #{timercount} seconds")
+            if @options[:noop]
+                error_counter += 1
+                email_body = "#{email_body}<font color='red'>NOOP Set; Sync disabled</font></br></br>"
+            else
+                begin
+                    synctask = apiconn.resource(:products).call(:sync, {:organization_id => @options[:org], :id => product['id']})
+                    running = true
+                    pbar = ProgressBar.create(:format => "   %a < Task ID #{synctask['id']} >")
+                    timercount = 0
+                    #We've started the sync, now to let it do it's work while we wait...
+                    #Yes, the below isn't perfectly accurate to the seconds. We sleep 30 seconds (accurate-ish), then do the API call which may take a few seconds.
+                    #This leads to the timer count not being perfect. But for it's intended purpose, it's good enough
+                    while running
+                        #Basically, sleep 30 seconds, as we only want to check status every 30 to prevent excessive API calls
+                        30.times {
+                            sleep 1
+                            pbar.refresh
+                            timercount += 1
+                        }
+                        #Get the current status of the sync task
+                        currentstatus = apiconn.resource(:foreman_tasks).call(:show, {:organization_id => @options[:org], :id => synctask['id']})
+                        #If the sync is finised, finish the timer and set running to false
+                        if currentstatus['state'] == 'stopped'
+                            running = false
+                            pbar.finish
+                        else
+                            #If the sync isn't finished, lets see how long it's been running. If it's divisible by 3600 seconds (an hour), send an email to inform the admin
+                            #There's nothing wrong with a long running sync, or sometimes there is. This is just a "watchdog" in a sense so the admin doesnt have to keep an eye on it
+                            #Ignore the hourly emails of a single sync taking a while if you know it should take a while
+                            #Otherwise, the email is an alert to see what's taking so long
+                            #Down the road, probably worth making the YAML take a time in seconds per product of a "standard" sync time, and then basing alerts off that
+                            if timercount % 3600 == 0
+                                send_email("ProductSync long running sync: #{product['name']}", "#{product['name']} has been syncing for #{timercount} seconds")
+                            end
                         end
                     end
-                end
-                #Alrighty, we're done running. Now to check the results
-                status = currentstatus['result']
-                if status.empty?
-                    status = "No status available"
+                    #Alrighty, we're done running. Now to check the results
+                    status = currentstatus['result']
+                    if status.empty?
+                        status = "No status available"
+                        error_counter += 1
+                    elsif status != "success"
+                        error_counter += 1
+                    end
+                    puts "   Syncing of #{product['name']} completed. Result was #{status}"
+                    #Working on adding url links, but its broken when you use localhost as your URI...
+                    #                email_body = "#{email_body}Syncing of #{product['name']} completed. Result was <a href=\"#{@options[:uri]}/foreman_tasks/tasks/#{synctask['id']}\">#{status}</a></br></br>"
+                    email_body = "#{email_body}Syncing of #{product['name']} completed. Result was #{status}</br></br>"
+                rescue Exception => e
+                    #Catch ALL exceptions, and log it against the sync task that was errored and add it to the email/output it
                     error_counter += 1
-                elsif status != "success"
-                    error_counter += 1
+                    #It's possible it errored on the synctask object and id may be null.  Need to account for that
+                    if synctask.nil? or synctask['id'].nil?
+                        taskid = "'No ID Available'"
+                    else
+                        taskid = synctask['id']
+                    end
+                    puts "   Sync task #{taskid} threw an exception: #{e.message}\n#{e.backtrace.inspect}"
+                    email_body ="#{email_body}<font color='red'>Sync task #{taskid} threw an exception: #{e.message}</br>#{e.backtrace.inspect}</font></br></br>"
                 end
-                puts "   Syncing of #{product['name']} completed. Result was #{status}"
-                #Working on adding url links, but its broken when you use localhost as your URI...
-#                email_body = "#{email_body}Syncing of #{product['name']} completed. Result was <a href=\"#{@options[:uri]}/foreman_tasks/tasks/#{synctask['id']}\">#{status}</a></br></br>"
-                email_body = "#{email_body}Syncing of #{product['name']} completed. Result was #{status}</br></br>"
-            rescue Exception => e
-                #Catch ALL exceptions, and log it against the sync task that was errored and add it to the email/output it
-                error_counter += 1
-                #It's possible it errored on the synctask object and id may be null.  Need to account for that
-                if synctask.nil? or synctask['id'].nil?
-                    taskid = "'No ID Available'"
-                else
-                    taskid = synctask['id']
-                end
-                puts "   Sync task #{taskid} threw an exception: #{e.message}\n#{e.backtrace.inspect}"
-                email_body ="#{email_body}<font color='red'>Sync task #{taskid} threw an exception: #{e.message}</br>#{e.backtrace.inspect}</font></br></br>"
             end
         end
     end
