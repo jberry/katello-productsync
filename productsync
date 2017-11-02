@@ -23,7 +23,7 @@ require 'apipie-bindings'
 require 'ruby-progressbar'
 require 'mail'
 require 'terminal-table'
-
+require 'pry'
 
 @defaults = {
     :uri            => 'https://localhost/',
@@ -187,7 +187,7 @@ def health()
         if @yaml[:products].is_a?(Array) and @yaml[:products].include?(product['name'])
             inyaml = true
         end
-        ptable = [inyaml,product['name'],product['sync_status']['raw_state'],product['last_sync'],product['repository_count']]
+        ptable = [inyaml,product['name'],product['sync_summary'].to_s,product['last_sync'],product['repository_count']]
         alltable << ptable
     end
     table = Terminal::Table.new :rows => alltable, :headings => ['In Yaml?','Name','Raw State','Last Sync','Repository Count']
@@ -208,12 +208,12 @@ def sync()
         if @yaml[:products].is_a?(Array) and @yaml[:products].include?(product['name'])
             productdetails = apiconn.resource(:products).call(:show, {:organization_id => @options[:org], :full_results => true, :id => product['id']})
             #Check and make sure the product isn't already syncing, and is in a good stopped state
-            unless productdetails['sync_status']['raw_state'] == 'stopped'
-                email_body= "#{email_body}<font color='red'>Product #{product['name']} is not in a stopped state. Current state: #{productdetails['sync_status']['raw_state']}</font></br></br>"
-                puts "Product #{product['name']} is not in a stopped state. Current state: #{productdetails['sync_status']['raw_state']}"
-                error_counter += 1
-                next
-            end
+#            unless productdetails['sync_status']['raw_state'] == 'stopped'
+ #               email_body= "#{email_body}<font color='red'>Product #{product['name']} is not in a stopped state. Current state: #{productdetails['sync_status']['raw_state']}</font></br></br>"
+  #              puts "Product #{product['name']} is not in a stopped state. Current state: #{productdetails['sync_status']['raw_state']}"
+   #             error_counter += 1
+    #            next
+     #       end
             puts "Syncing #{product['name']}"
             email_body = "#{email_body}Syncing #{product['name']}</br>"
             #The sync process has the ability to error, so we're putting it inside a rescue block
